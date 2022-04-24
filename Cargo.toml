@@ -1,0 +1,2 @@
+[workspace]
+members = ["tmath", "tmath_macros"]
