@@ -1,0 +1,5 @@
+rd_enabled = true
+fleet_id = "b9771535-8131-4a0e-8ee0-9ec7933b8229"
+
+[build]
+sccache = "/home/tukanoid/.cargo/bin/sccache"

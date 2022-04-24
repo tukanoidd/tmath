@@ -1,2 +1,4 @@
 [workspace]
 members = ["tmath", "tmath_macros"]
+
+resolver = "2"
