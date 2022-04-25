@@ -1,7 +1,8 @@
+use std::str::FromStr;
+
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::{format_ident, quote, ToTokens};
-use std::str::FromStr;
 use syn::{
     parse_macro_input, Data, DataStruct, DeriveInput, Expr, ExprLit, Field, Fields, FieldsUnnamed,
     Lit, Type, TypeArray,
@@ -59,6 +60,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
         }) => {
             let var_ty_str = format!("{}", var_ty.to_token_stream());
             let is_int = var_ty_str.starts_with('i') || var_ty_str.starts_with('u');
+            let is_signed = !var_ty_str.starts_with('u');
 
             let len = match len {
                 Expr::Lit(ExprLit { lit, .. }) => match lit {
@@ -91,6 +93,14 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 }
             };
             // ----- New END -----
+
+            // ----- Consts START -----
+            let consts = quote! {
+                impl #struct_name {
+                    pub const LEN: usize = #len;
+                }
+            };
+            // ----- Consts END -----
 
             // ----- Getters Setters START -----
             let getters_setters = {
@@ -388,9 +398,27 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     }
                 });
 
+                let neg = match is_signed {
+                    true => {
+                        let negs = (0..len).map(|index| quote! { -self[#index] });
+
+                        quote! {
+                            impl std::ops::Neg for #struct_name {
+                                type Output = Self;
+
+                                fn neg(self) -> Self {
+                                    Self([#(#negs),*])
+                                }
+                            }
+                        }
+                    }
+                    false => quote! {},
+                };
+
                 quote! {
                     #(#value_impls)*
                     #(#vector_impls)*
+                    #neg
                 }
             };
             // ----- Ops END -----
@@ -418,6 +446,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
             (quote! {
                 #new
+                #consts
                 #getters_setters
                 #vector_specific
                 #indexing
