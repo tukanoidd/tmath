@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, Span};
+use proc_macro2::{Ident, Literal, Span};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse_macro_input, Data, DataStruct, DeriveInput, Expr, ExprLit, Field, Fields, FieldsUnnamed,
@@ -58,6 +58,8 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
         Type::Array(TypeArray {
             elem: var_ty, len, ..
         }) => {
+            let struct_name_str = struct_name.to_string();
+
             let var_ty_str = format!("{}", var_ty.to_token_stream());
             let is_int = var_ty_str.starts_with('i') || var_ty_str.starts_with('u');
             let is_signed = !var_ty_str.starts_with('u');
@@ -82,6 +84,12 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #var_name_ident: #var_ty
                 }
             });
+
+            let bytes = &var_ty_str[1..];
+            let as_float = Type::Verbatim(
+                proc_macro2::TokenStream::from_str(&format!("f{}", bytes))
+                    .expect("Couldn't create a token stream for the cast type"),
+            );
 
             // ----- New START -----
             let new = quote! {
@@ -231,16 +239,10 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             }
                         },
                         true => {
-                            let bytes = &var_ty_str[1..];
-                            let as_ty = Type::Verbatim(
-                                proc_macro2::TokenStream::from_str(&format!("f{}", bytes))
-                                    .expect("Couldn't create a token stream for the cast type"),
-                            );
-
                             quote! {
                                 #[inline]
-                                fn magnitude(&self) -> #as_ty {
-                                    (self.magnitude_sq() as #as_ty).sqrt()
+                                fn magnitude(&self) -> #as_float {
+                                    (self.magnitude_sq() as #as_float).sqrt()
                                 }
                             }
                         }
@@ -287,11 +289,25 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     true => quote! {},
                 };
 
+                let distance = {
+                    let return_ty = if is_int { &as_float } else { var_ty };
+
+                    quote! {
+                        impl #struct_name {
+                            #[inline]
+                            pub fn distance(&self, rhs: &Self) -> #return_ty {
+                                (self - rhs).magnitude()
+                            }
+                        }
+                    }
+                };
+
                 quote! {
                     #dot
                     #cross
                     #magnitude
                     #normalize
+                    #distance
                 }
             };
             // ----- Vector Specific END -----
@@ -368,33 +384,71 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     let op_trait_assign = format_ident!("{}Assign", op_name);
                     let op_fun_assign = format_ident!("{}_assign", op_name_lower);
 
-                    let ops = (0..len).map(|index| {
-                        quote! {
+                    let no_ref = {
+                        let ops = (0..len).map(|index| {
+                            quote! {
                             self[#index].#op_fun(rhs[#index])
                         }
-                    });
-                    let ops_assign = (0..len).map(|index| {
-                        quote! {
+                        });
+                        let ops_assign = (0..len).map(|index| {
+                            quote! {
                             self[#index].#op_fun_assign(rhs[#index]);
                         }
-                    });
+                        });
+
+                        quote! {
+                            impl std::ops::#op_trait for #struct_name {
+                                type Output = Self;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: Self) -> Self::Output {
+                                    Self([#(#ops),*])
+                                }
+                            }
+
+                            impl std::ops::#op_trait_assign for #struct_name {
+                                #[inline]
+                                fn #op_fun_assign(&mut self, rhs: Self) {
+                                    #(#ops_assign)*
+                                }
+                            }
+                        }
+                    };
+
+                    let with_ref = {
+                        let ops = (0..len).map(|index| {
+                            quote! {
+                                self[#index].#op_fun(rhs[#index])
+                            }
+                        });
+                        let ops_assign = (0..len).map(|index| {
+                            quote! {
+                                self[#index].#op_fun_assign(rhs[#index]);
+                            }
+                        });
+
+                        quote! {
+                            impl<'a, 'b> std::ops::#op_trait<&'b #struct_name> for &'a #struct_name {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
+                                    #struct_name([#(#ops),*])
+                                }
+                            }
+
+                            impl<'a, 'b> std::ops::#op_trait_assign<&'b #struct_name> for #struct_name {
+                                #[inline]
+                                fn #op_fun_assign(&mut self, rhs: &'b #struct_name) {
+                                    #(#ops_assign)*
+                                }
+                            }
+                        }
+                    };
 
                     quote! {
-                        impl std::ops::#op_trait for #struct_name {
-                            type Output = Self;
-
-                            #[inline]
-                            fn #op_fun(self, rhs: Self) -> Self::Output {
-                                Self([#(#ops),*])
-                            }
-                        }
-
-                        impl std::ops::#op_trait_assign for #struct_name {
-                            #[inline]
-                            fn #op_fun_assign(&mut self, rhs: Self) {
-                                #(#ops_assign)*
-                            }
-                        }
+                        #no_ref
+                        #with_ref
                     }
                 });
 
@@ -444,6 +498,58 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             };
             // ----- From END -----
 
+            // ----- Display/Debug START -----
+            let display_debug = {
+                let debug = {
+                    let var_val = var_names_str
+                        .iter()
+                        .map(|var_name| Literal::string(var_name))
+                        .enumerate()
+                        .map(|(index, var_name_lit)| {
+                            quote! {
+                                .field(#var_name_lit, &self[#index])
+                            }
+                        });
+
+                    quote! {
+                        impl std::fmt::Debug for #struct_name {
+                            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                                f.debug_struct(#struct_name_str)
+                                #(
+                                    #var_val
+                                )*.finish()
+                            }
+                        }
+                    }
+                };
+
+                let display = {
+                    let curly_brackets_repetition = {
+                        let str = format!(
+                            "({})",
+                            (0..len).map(|_| "{}").collect::<Vec<_>>().join(", ")
+                        );
+                        Literal::string(&str)
+                    };
+
+                    let vals = (0..len).map(|index| quote! { self[#index] });
+
+                    quote! {
+                        impl std::fmt::Display for #struct_name {
+                            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                                write!(f, #curly_brackets_repetition, #(#vals),*)
+                            }
+                        }
+                    }
+                };
+
+                quote! {
+                    #debug
+                    #display
+                }
+            };
+            // ----- Display/Debug END -----
+
             (quote! {
                 #new
                 #consts
@@ -452,6 +558,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 #indexing
                 #ops
                 #from
+                #display_debug
             })
             .into()
         }
