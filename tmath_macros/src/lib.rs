@@ -297,15 +297,21 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     }
                 };
 
-                let angle = quote! {
-                    impl #struct_name {
-                        pub fn angle(&self, rhs: &Self) -> #return_ty {
-                            let mag_mul = self.magnitude() * rhs.magnitude() ;
+                let angle = if is_int {
+                    quote! {}
+                } else {
+                    quote! {
+                        impl #struct_name {
+                            pub fn angle(&self, rhs: &Self) -> #return_ty {
+                                let mag_s = self.magnitude();
+                                let mag_r = rhs.magnitude();
 
-                            if mag_mul == 0.0 {
-                                0.0
-                            } else {
-                                self.dot(rhs) #var_cast / mag_mul
+                                2.0 * (self * mag_r - rhs * mag_s)
+                                    .magnitude()
+                                    .atan2(
+                                        (self * mag_r + rhs * mag_s)
+                                        .magnitude()
+                                    )
                             }
                         }
                     }
@@ -355,33 +361,59 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     let op_trait_assign = format_ident!("{}Assign", op_name);
                     let op_fun_assign = format_ident!("{}_assign", op_name_lower);
 
-                    let ops = (0..len).map(|index| {
+                    let no_ref = {
+                        let ops = (0..len).map(|index| {
+                            quote! {
+                                self[#index].#op_fun(rhs)
+                            }
+                        });
+                        let ops_assign = (0..len).map(|index| {
+                            quote! {
+                                self[#index].#op_fun_assign(rhs);
+                            }
+                        });
+
                         quote! {
-                            self[#index].#op_fun(rhs)
+                            impl std::ops::#op_trait<#var_ty> for #struct_name {
+                                type Output = Self;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: #var_ty) -> Self::Output {
+                                    Self([#(#ops),*])
+                                }
+                            }
+
+                            impl std::ops::#op_trait_assign<#var_ty> for #struct_name {
+                                #[inline]
+                                fn #op_fun_assign(&mut self, rhs: #var_ty) {
+                                    #(#ops_assign)*
+                                }
+                            }
                         }
-                    });
-                    let ops_assign = (0..len).map(|index| {
+                    };
+
+                    let with_ref = {
+                        let ops = (0..len).map(|index| {
+                            quote! {
+                                self[#index].#op_fun(rhs)
+                            }
+                        });
+
                         quote! {
-                            self[#index].#op_fun_assign(rhs);
+                            impl<'a> std::ops::#op_trait<#var_ty> for &'a #struct_name {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: #var_ty) -> Self::Output {
+                                    #struct_name([#(#ops),*])
+                                }
+                            }
                         }
-                    });
+                    };
 
                     quote! {
-                        impl std::ops::#op_trait<#var_ty> for #struct_name {
-                            type Output = Self;
-
-                            #[inline]
-                            fn #op_fun(self, rhs: #var_ty) -> Self::Output {
-                                Self([#(#ops),*])
-                            }
-                        }
-
-                        impl std::ops::#op_trait_assign<#var_ty> for #struct_name {
-                            #[inline]
-                            fn #op_fun_assign(&mut self, rhs: #var_ty) {
-                                #(#ops_assign)*
-                            }
-                        }
+                        #no_ref
+                        #with_ref
                     }
                 });
 
@@ -447,7 +479,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 }
                             }
 
-                            impl<'a, 'b> std::ops::#op_trait_assign<&'b #struct_name> for #struct_name {
+                            impl<'b> std::ops::#op_trait_assign<&'b #struct_name> for #struct_name {
                                 #[inline]
                                 fn #op_fun_assign(&mut self, rhs: &'b #struct_name) {
                                     #(#ops_assign)*
