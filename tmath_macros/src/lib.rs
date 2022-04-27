@@ -90,6 +90,11 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 proc_macro2::TokenStream::from_str(&format!("f{}", bytes))
                     .expect("Couldn't create a token stream for the cast type"),
             );
+            let var_cast = if is_int {
+                quote! { as #as_float }
+            } else {
+                quote! {}
+            };
 
             // ----- New START -----
             let new = quote! {
@@ -218,6 +223,8 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     _ => quote! {},
                 };
 
+                let return_ty = if is_int { &as_float } else { var_ty };
+
                 let magnitude = {
                     let sq = (0..len).map(|index| {
                         quote! {
@@ -231,20 +238,10 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                         }
                     };
 
-                    let magnitude = match is_int {
-                        false => quote! {
-                            #[inline]
-                            fn magnitude(&self) -> #var_ty {
-                                self.magnitude_sq().sqrt()
-                            }
-                        },
-                        true => {
-                            quote! {
-                                #[inline]
-                                fn magnitude(&self) -> #as_float {
-                                    (self.magnitude_sq() as #as_float).sqrt()
-                                }
-                            }
+                    let magnitude = quote! {
+                        #[inline]
+                        fn magnitude(&self) -> #return_ty {
+                            (self.magnitude_sq() #var_cast).sqrt()
                         }
                     };
 
@@ -290,13 +287,25 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 };
 
                 let distance = {
-                    let return_ty = if is_int { &as_float } else { var_ty };
-
                     quote! {
                         impl #struct_name {
                             #[inline]
                             pub fn distance(&self, rhs: &Self) -> #return_ty {
                                 (self - rhs).magnitude()
+                            }
+                        }
+                    }
+                };
+
+                let angle = quote! {
+                    impl #struct_name {
+                        pub fn angle(&self, rhs: &Self) -> #return_ty {
+                            let mag_mul = self.magnitude() * rhs.magnitude() ;
+
+                            if mag_mul == 0.0 {
+                                0.0
+                            } else {
+                                self.dot(rhs) #var_cast / mag_mul
                             }
                         }
                     }
@@ -308,6 +317,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #magnitude
                     #normalize
                     #distance
+                    #angle
                 }
             };
             // ----- Vector Specific END -----
