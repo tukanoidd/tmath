@@ -42,12 +42,9 @@ declare_vectors!(2, 3, 4);
 // TODO(tukanoidd): implement every possible cast for vectors (macros)
 
 impl Vector3 {
-    pub fn rotate_about_angle_axis(&self, angle: f32, axis: &mut Self) -> Self {
-        axis.normalize();
+    pub fn rotate_about_angle_axis(&self, angle: f32, axis: &Self) -> Self {
+        let q = Quaternion::new(angle, axis.normalized()).as_unit_norm();
 
-        let p = Quaternion::new(0.0, *self);
-        let q = Quaternion::new(angle, *axis).as_unit_norm();
-
-        (q * p * -q).v
+        (q * Quaternion::new(0.0, *self) * -q).v
     }
 }
