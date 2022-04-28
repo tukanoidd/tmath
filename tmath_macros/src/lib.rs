@@ -479,6 +479,15 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 }
                             }
 
+                            impl<'a> std::ops::#op_trait<&'a #struct_name> for &'a #struct_name {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: &'a #struct_name) -> Self::Output {
+                                    #struct_name([#(#ops),*])
+                                }
+                            }
+
                             impl<'b> std::ops::#op_trait_assign<&'b #struct_name> for #struct_name {
                                 #[inline]
                                 fn #op_fun_assign(&mut self, rhs: &'b #struct_name) {

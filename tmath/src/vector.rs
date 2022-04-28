@@ -1,5 +1,6 @@
 use paste::paste;
 
+use crate::quaternion::Quaternion;
 use tmath_macros::Vector;
 
 macro_rules! declare_vector_variants {
@@ -11,6 +12,7 @@ macro_rules! declare_vector_variants {
     ) => {
         paste! {
             $($(
+                #[repr(C)]
                 #[derive(Default, Copy, Clone, PartialEq, Vector)]
                 pub struct [< Vector $len $variant_name >]([$variant_ty; $len]);
             )*)*
@@ -22,6 +24,7 @@ macro_rules! declare_vectors {
     ($($len:literal),*) => {
         paste! {
             $(
+                #[repr(C)]
                 #[derive(Default, Copy, Clone, PartialEq, Vector)]
                 pub struct [< Vector $len >]([f32; $len]);
 
@@ -37,3 +40,14 @@ macro_rules! declare_vectors {
 declare_vectors!(2, 3, 4);
 
 // TODO(tukanoidd): implement every possible cast for vectors (macros)
+
+impl Vector3 {
+    pub fn rotate_about_angle_axis(&self, angle: f32, axis: &mut Self) -> Self {
+        axis.normalize();
+
+        let p = Quaternion::new(0.0, *self);
+        let q = Quaternion::new(angle, *axis).as_unit_norm();
+
+        (q * p * -q).v
+    }
+}
