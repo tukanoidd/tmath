@@ -4,8 +4,13 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Literal, Span};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, Data, DataStruct, DeriveInput, Expr, ExprLit, Field, Fields, FieldsUnnamed,
-    Lit, Type, TypeArray,
+    parenthesized,
+    parse::{Parse, ParseStream, Peek},
+    parse_macro_input,
+    punctuated::Punctuated,
+    token::{Comma, Paren},
+    Data, DataStruct, DeriveInput, Expr, ExprLit, Field, Fields, FieldsUnnamed, Lit, Path, Type,
+    TypeArray,
 };
 
 // ----- Helpers START -----
@@ -16,9 +21,21 @@ macro_rules! str_ident {
     };
 }
 // ----- Macros END -----
+
+// ----- Functions START -----
+fn parse_until<E: Peek>(input: ParseStream, end: E) -> syn::Result<TokenStream> {
+    let mut tokens = proc_macro2::TokenStream::new();
+
+    while !input.is_empty() && !input.peek(end) {
+        let next: proc_macro2::TokenTree = input.parse()?;
+        tokens.extend(Some(next));
+    }
+
+    Ok(tokens.into())
+}
+// ----- Functions END -----
 // ----- Helpers END -----
 
-// ----- Derives START -----
 // ----- Vector START -----
 // ----- Consts START -----
 const VEC_VAR_COUNT: usize = 4;
@@ -479,15 +496,6 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 }
                             }
 
-                            impl<'a> std::ops::#op_trait<&'a #struct_name> for &'a #struct_name {
-                                type Output = #struct_name;
-
-                                #[inline]
-                                fn #op_fun(self, rhs: &'a #struct_name) -> Self::Output {
-                                    #struct_name([#(#ops),*])
-                                }
-                            }
-
                             impl<'b> std::ops::#op_trait_assign<&'b #struct_name> for #struct_name {
                                 #[inline]
                                 fn #op_fun_assign(&mut self, rhs: &'b #struct_name) {
@@ -616,5 +624,201 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
         _ => panic!("First struct member has to be an array"),
     }
 }
+
+#[derive(Clone)]
+struct CastVectorInfo {
+    _paren: Paren,
+    path: Path,
+    len: Lit,
+    elem_ty: Type,
+}
+
+impl Parse for CastVectorInfo {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        let paren = parenthesized!(content in input);
+
+        Ok(Self {
+            _paren: paren,
+            path: {
+                let path: Path = content.parse()?;
+                let _: Comma = content.parse()?;
+
+                path
+            },
+            len: {
+                let len: Lit = content.parse()?;
+                let _: Comma = content.parse()?;
+
+                len
+            },
+            elem_ty: content.parse()?,
+        })
+    }
+}
+
+impl ToTokens for CastVectorInfo {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let CastVectorInfo {
+            path, len, elem_ty, ..
+        } = self;
+
+        *tokens = quote! {
+            (#path, #len, #elem_ty)
+        };
+    }
+}
+
+struct CastAllVectorsInput(Punctuated<CastVectorInfo, Comma>);
+
+impl Parse for CastAllVectorsInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut vector_infos = Punctuated::new();
+        let first = parse_until(input, Comma)?;
+
+        vector_infos.push_value(syn::parse(first)?);
+
+        while input.peek(Comma) {
+            vector_infos.push_punct(input.parse()?);
+
+            let next = parse_until(input, Comma)?;
+            vector_infos.push_value(syn::parse(next)?);
+        }
+
+        Ok(Self(vector_infos))
+    }
+}
+
+#[proc_macro]
+pub fn cast_all_vectors(input: TokenStream) -> TokenStream {
+    let CastAllVectorsInput(vector_infos) = parse_macro_input!(input);
+    let vector_infos = vector_infos.iter().collect::<Vec<_>>();
+    let vec_amount = vector_infos.len();
+
+    let all_casts = (0..(vec_amount - 1))
+        .flat_map(|i| {
+            let vec1 = vector_infos[i];
+
+            ((i + 1)..vec_amount)
+                .map(|j| {
+                    let vec2 = vector_infos[j];
+
+                    cast_two_vectors(vec1, vec2).into()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<proc_macro2::TokenStream>>();
+
+    (quote! { #( #all_casts )* }).into()
+}
+
+struct CastVectorsInput {
+    info_left: CastVectorInfo,
+    _comma: Comma,
+    info_right: CastVectorInfo,
+}
+
+impl Parse for CastVectorsInput {
+    #[inline]
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(Self {
+            info_left: input.parse()?,
+            _comma: input.parse()?,
+            info_right: input.parse()?,
+        })
+    }
+}
+
+impl ToTokens for CastVectorsInput {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let CastVectorsInput {
+            info_left,
+            info_right,
+            ..
+        } = self;
+
+        *tokens = quote! {
+            #info_left, #info_right
+        };
+    }
+}
+
+#[proc_macro]
+pub fn cast_vectors(input: TokenStream) -> TokenStream {
+    let CastVectorsInput {
+        info_left,
+        info_right,
+        ..
+    } = parse_macro_input!(input);
+
+    cast_two_vectors(&info_left, &info_right)
+}
+
+fn cast_two_vectors(left_info: &CastVectorInfo, right_info: &CastVectorInfo) -> TokenStream {
+    let CastVectorInfo {
+        path: vec1,
+        len: vec1_len,
+        elem_ty: vec1_ety,
+        ..
+    } = left_info;
+
+    let CastVectorInfo {
+        path: vec2,
+        len: vec2_len,
+        elem_ty: vec2_ety,
+        ..
+    } = right_info;
+
+    match (vec1_len, vec2_len) {
+        (Lit::Int(vec1_len_lit_int), Lit::Int(vec2_lit_int)) => {
+            let (vec1_len, vec2_len): (usize, usize) = (
+                vec1_len_lit_int
+                    .base10_parse()
+                    .expect("Couldn't parse len 1 to usize"),
+                vec2_lit_int
+                    .base10_parse()
+                    .expect("Couldn't parse len 2 to usize"),
+            );
+
+            let (vec2_vec1, vec1_vec2) = {
+                let min_len = vec1_len.min(vec2_len);
+
+                let map_fn = |index, ty: &Type| {
+                    if index < min_len {
+                        quote! { rhs[#index] as #ty }
+                    } else {
+                        quote! { #ty::default() }
+                    }
+                };
+
+                let vec2_vec1 = (0..vec1_len)
+                    .map(|index| map_fn(index, vec1_ety))
+                    .collect::<Vec<_>>();
+                let vec1_vec2 = (0..vec2_len)
+                    .map(|index| map_fn(index, vec2_ety))
+                    .collect::<Vec<_>>();
+
+                (vec2_vec1, vec1_vec2)
+            };
+
+            (quote! {
+                impl From<#vec2> for #vec1 {
+                    #[inline]
+                    fn from(rhs: #vec2) -> #vec1 {
+                        #vec1::new(#(#vec2_vec1),*)
+                    }
+                }
+
+                impl From<#vec1> for #vec2 {
+                    #[inline]
+                    fn from(rhs: #vec1) -> #vec2 {
+                        #vec2::new(#(#vec1_vec2),*)
+                    }
+                }
+            })
+            .into()
+        }
+        _ => panic!("Both lengths have to be integer literals"),
+    }
+}
 // ----- Vector END -----
-// ----- Derives END -----

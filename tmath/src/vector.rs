@@ -1,7 +1,8 @@
 use paste::paste;
 
+use tmath_macros::{cast_all_vectors, Vector};
+
 use crate::quaternion::Quaternion;
-use tmath_macros::Vector;
 
 macro_rules! declare_vector_variants {
     (
@@ -39,7 +40,26 @@ macro_rules! declare_vectors {
 
 declare_vectors!(2, 3, 4);
 
-// TODO(tukanoidd): implement every possible cast for vectors (macros)
+cast_all_vectors![
+    (Vector2, 2, f32),
+    (Vector3, 3, f32),
+    (Vector4, 4, f32),
+    (Vector2D, 2, f64),
+    (Vector3D, 3, f64),
+    (Vector4D, 4, f64),
+    (Vector2I, 2, i32),
+    (Vector3I, 3, i32),
+    (Vector4I, 4, i32),
+    (Vector2L, 2, i64),
+    (Vector3L, 3, i64),
+    (Vector4L, 4, i64),
+    (Vector2U, 2, u32),
+    (Vector3U, 3, u32),
+    (Vector4U, 4, u32),
+    (Vector2UL, 2, u64),
+    (Vector3UL, 3, u64),
+    (Vector4UL, 4, u64)
+];
 
 impl Vector3 {
     pub fn rotate_about_angle_axis(&self, angle: f32, axis: &Self) -> Self {

@@ -19,6 +19,18 @@ macro_rules! ops {
 				    }
 			    }
 
+		        impl<'a> std::ops::$op_name<f32> for &'a Quaternion {
+				    type Output = Quaternion;
+
+				    #[inline]
+				    fn [< $op_name:lower >](self, rhs: f32) -> Quaternion {
+					    Quaternion {
+						    s: self.s.[< $op_name:lower >](rhs),
+						    v: self.v.[< $op_name:lower >](rhs)
+					    }
+				    }
+			    }
+
 		        impl std::ops::[< $op_name Assign >]<f32> for Quaternion {
 			        #[inline]
 			        fn [< $op_name:lower _assign >](&mut self, rhs: f32) {
@@ -65,18 +77,6 @@ macro_rules! ops {
 			        }
 		        }
 
-		        impl<'a> std::ops::$op_name<&'a Quaternion> for &'a Quaternion {
-			        type Output = Quaternion;
-
-			        #[inline]
-			        fn [< $op_name:lower >](self, rhs: &'a Quaternion) -> Quaternion {
-				        Quaternion {
-					        s: self.s.[< $op_name:lower >](rhs.s),
-					        v: self.v.[< $op_name:lower >](rhs.v)
-				        }
-			        }
-		        }
-
 		        impl<'b> std::ops::[< $op_name Assign>]<&'b Quaternion> for Quaternion {
 			        #[inline]
 			        fn [< $op_name:lower _assign >](&mut self, rhs: &'b Quaternion) {
@@ -105,9 +105,10 @@ impl Quaternion {
         Self { s, v }
     }
 
+    #[allow(clippy::eq_op)]
     #[inline]
     pub fn norm(&self) -> f32 {
-        (self.s * self.s + (&self.v | &self.v)).sqrt()
+        (self.s * self.s + (self.v | self.v)).sqrt()
     }
 
     pub fn normalize(&mut self) {
@@ -123,7 +124,7 @@ impl Quaternion {
         let norm = self.norm();
 
         if norm != 0.0 {
-            self / norm
+            *self / norm
         } else {
             *self
         }
