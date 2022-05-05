@@ -1,7 +1,7 @@
 use paste::paste;
-use std::ops::Neg;
+use std::ops::{Index, Neg};
 
-use crate::vector::Vector3;
+use crate::vector::{Vector3, Vector4};
 
 macro_rules! ops {
 	[s; $($op_name:ident),*] => {
@@ -209,5 +209,53 @@ impl Neg for Quaternion {
     #[inline]
     fn neg(self) -> Self::Output {
         self.conjugate()
+    }
+}
+
+impl Index<usize> for Quaternion {
+    type Output = f32;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            3 => &self.s,
+            _ => &self.v[index],
+        }
+    }
+}
+
+impl From<[f32; 4]> for Quaternion {
+    #[inline]
+    fn from(rhs: [f32; 4]) -> Self {
+        Self {
+            s: rhs[3],
+            v: (rhs[0], rhs[1], rhs[2]).into(),
+        }
+    }
+}
+
+impl From<(f32, f32, f32, f32)> for Quaternion {
+    #[inline]
+    fn from((x, y, z, w): (f32, f32, f32, f32)) -> Self {
+        Self {
+            s: w,
+            v: (x, y, z).into(),
+        }
+    }
+}
+
+impl From<(Vector3, f32)> for Quaternion {
+    #[inline]
+    fn from((v, s): (Vector3, f32)) -> Self {
+        Self { s, v }
+    }
+}
+
+impl From<Vector4> for Quaternion {
+    #[inline]
+    fn from(rhs: Vector4) -> Self {
+        Self {
+            s: rhs[3],
+            v: (rhs[0], rhs[1], rhs[2]).into(),
+        }
     }
 }

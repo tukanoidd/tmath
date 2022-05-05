@@ -42,7 +42,7 @@ const VEC_VAR_COUNT: usize = 4;
 const VEC_VAR_NAMES: [&str; VEC_VAR_COUNT] = ["x", "y", "z", "w"];
 
 const VEC_VALUE_OPS_NAMES: [&str; 5] = ["Add", "Sub", "Mul", "Div", "Rem"];
-const VEC_VECTOR_OPS_NAMES: [&str; 2] = ["Add", "Sub"];
+const VEC_VECTOR_OPS_NAMES: [&str; 5] = ["Add", "Sub", "Mul", "Div", "Rem"];
 const VEC_DOT_OP_NAME: &str = "BitOr";
 const VEC_CROSS_OP_NAME: &str = "BitXor";
 // ----- Consts END -----
