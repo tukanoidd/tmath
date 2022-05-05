@@ -45,6 +45,7 @@ const VEC_VALUE_OPS_NAMES: [&str; 5] = ["Add", "Sub", "Mul", "Div", "Rem"];
 const VEC_VECTOR_OPS_NAMES: [&str; 5] = ["Add", "Sub", "Mul", "Div", "Rem"];
 const VEC_DOT_OP_NAME: &str = "BitOr";
 const VEC_CROSS_OP_NAME: &str = "BitXor";
+const VEC_TYPES: [&str; 2] = ["Point", "Color"];
 // ----- Consts END -----
 
 #[proc_macro_derive(Vector)]
@@ -379,12 +380,12 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     let op_fun_assign = format_ident!("{}_assign", op_name_lower);
 
                     let no_ref = {
-                        let ops = (0..len).map(|index| {
+                        let ops_vec_val = (0..len).map(|index| {
                             quote! {
                                 self[#index].#op_fun(rhs)
                             }
                         });
-                        let ops_assign = (0..len).map(|index| {
+                        let ops_assign_vec_val = (0..len).map(|index| {
                             quote! {
                                 self[#index].#op_fun_assign(rhs);
                             }
@@ -396,14 +397,23 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
                                 #[inline]
                                 fn #op_fun(self, rhs: #var_ty) -> Self::Output {
-                                    Self([#(#ops),*])
+                                    Self([#(#ops_vec_val),*])
                                 }
                             }
 
                             impl std::ops::#op_trait_assign<#var_ty> for #struct_name {
                                 #[inline]
                                 fn #op_fun_assign(&mut self, rhs: #var_ty) {
-                                    #(#ops_assign)*
+                                    #(#ops_assign_vec_val)*
+                                }
+                            }
+
+                            impl std::ops::#op_trait<#struct_name> for #var_ty {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: #struct_name) -> Self::Output {
+                                    rhs.#op_fun(self)
                                 }
                             }
                         }
@@ -423,6 +433,15 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 #[inline]
                                 fn #op_fun(self, rhs: #var_ty) -> Self::Output {
                                     #struct_name([#(#ops),*])
+                                }
+                            }
+
+                            impl<'a> std::ops::#op_trait<&'a #struct_name> for #var_ty {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: &'a #struct_name) -> Self::Output {
+                                    rhs.#op_fun(self)
                                 }
                             }
                         }
@@ -609,6 +628,36 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             };
             // ----- Display/Debug END -----
 
+            // ----- Types START -----
+            let types = {
+                let types = VEC_TYPES
+                    .map(|ty| {
+                        format_ident!(
+                            "{}{}{}",
+                            ty,
+                            len,
+                            match var_ty_str.as_str() {
+                                "f64" => "D",
+                                "i32" => "I",
+                                "i64" => "L",
+                                "u32" => "U",
+                                "u64" => "UL",
+                                _ => "",
+                            }
+                        )
+                    })
+                    .map(|type_name| {
+                        quote! {
+                            pub type #type_name = #struct_name;
+                        }
+                    });
+
+                quote! {
+                    #(#types)*
+                }
+            };
+            // ----- Types END -----
+
             (quote! {
                 #new
                 #consts
@@ -618,6 +667,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 #ops
                 #from
                 #display_debug
+                #types
             })
             .into()
         }
