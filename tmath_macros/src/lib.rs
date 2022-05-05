@@ -116,7 +116,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
             // ----- New START -----
             let new = {
-                let vals = (0..len).map(|index| quote! { val });
+                let vals = (0..len).map(|_| quote! { val });
 
                 quote! {
                     impl #struct_name {
@@ -521,6 +521,15 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 #[inline]
                                 fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
                                     #struct_name([#(#ops),*])
+                                }
+                            }
+
+                            impl<'b> std::ops::#op_trait<&'b #struct_name> for #struct_name {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
+                                    (&self).#op_fun(rhs)
                                 }
                             }
 
