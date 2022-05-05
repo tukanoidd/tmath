@@ -115,11 +115,20 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             };
 
             // ----- New START -----
-            let new = quote! {
-                impl #struct_name {
-                    #[inline]
-                    pub fn new(#(#var_names_ident_ty),*) -> Self {
-                        Self([#(#var_names_ident),*])
+            let new = {
+                let vals = (0..len).map(|index| quote! { val });
+
+                quote! {
+                    impl #struct_name {
+                        #[inline]
+                        pub fn new(#(#var_names_ident_ty),*) -> Self {
+                            Self([#(#var_names_ident),*])
+                        }
+
+                        #[inline]
+                        pub fn new_val(val: #var_ty) -> Self {
+                            Self([#(#vals),*])
+                        }
                     }
                 }
             };
@@ -560,6 +569,13 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 let repeat_var_types = vec![var_ty; len];
 
                 quote! {
+                    impl From<#var_ty> for #struct_name {
+                        #[inline]
+                        fn from(rhs: #var_ty) -> Self {
+                            Self::new_val(rhs)
+                        }
+                    }
+
                     impl From<[#var_ty; #len]> for #struct_name {
                         #[inline]
                         fn from(rhs: [#var_ty; #len]) -> Self {
