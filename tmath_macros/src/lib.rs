@@ -116,7 +116,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
             // ----- New START -----
             let new = {
-                let vals = (0..len).map(|index| quote! { val });
+                let vals = (0..len).map(|_| quote! { val });
 
                 quote! {
                     impl #struct_name {
@@ -204,6 +204,24 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             #[inline]
                             fn #op_fun(self, rhs: Self) -> Self::Output {
                                 self.dot(&rhs)
+                            }
+                        }
+
+                        impl<'b> std::ops::#op_trait<&'b #struct_name> for #struct_name {
+                            type Output = #var_ty;
+
+                            #[inline]
+                            fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
+                                self.dot(rhs)
+                            }
+                        }
+
+                        impl<'a, 'b> std::ops::#op_trait<&'b #struct_name> for &'a #struct_name {
+                            type Output = #var_ty;
+
+                            #[inline]
+                            fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
+                                self.dot(rhs)
                             }
                         }
                     }
@@ -524,6 +542,15 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 }
                             }
 
+                            impl<'b> std::ops::#op_trait<&'b #struct_name> for #struct_name {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
+                                    (&self).#op_fun(rhs)
+                                }
+                            }
+
                             impl<'b> std::ops::#op_trait_assign<&'b #struct_name> for #struct_name {
                                 #[inline]
                                 fn #op_fun_assign(&mut self, rhs: &'b #struct_name) {
@@ -541,14 +568,23 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
                 let neg = match is_signed {
                     true => {
-                        let negs = (0..len).map(|index| quote! { -self[#index] });
+                        let negs_no_ref = (0..len).map(|index| quote! { -self[#index] });
+                        let negs_with_ref = negs_no_ref.clone();
 
                         quote! {
                             impl std::ops::Neg for #struct_name {
                                 type Output = Self;
 
-                                fn neg(self) -> Self {
-                                    Self([#(#negs),*])
+                                fn neg(self) -> Self::Output {
+                                    Self([#(#negs_no_ref),*])
+                                }
+                            }
+
+                            impl<'a> std::ops::Neg for &'a #struct_name {
+                                type Output = #struct_name;
+
+                                fn neg(self) -> Self::Output {
+                                    #struct_name([#(#negs_with_ref),*])
                                 }
                             }
                         }

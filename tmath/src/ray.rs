@@ -1,22 +1,54 @@
-use crate::vector::{Point3D, Vector3D};
-
-#[derive(Default, Debug, Copy, Clone, PartialEq)]
-pub struct Ray {
-    pub orig: Point3D,
-    pub dir: Vector3D,
-}
-
-impl Ray {
-    #[inline]
-    pub fn new(origin: Point3D, direction: Vector3D) -> Self {
-        Self {
-            orig: origin,
-            dir: direction,
+macro_rules! decl_rays {
+    ($ray:ident => [$(($var_ty:ty, $variant:ident)),*]) => {
+        #[derive(Default, Debug, Copy, Clone, PartialEq)]
+        pub struct $ray {
+            pub orig: crate::vector::Point3,
+            pub dir: crate::vector::Vector3,
         }
-    }
 
-    #[inline]
-    pub fn at(&self, t: f64) -> Point3D {
-        self.orig + t * self.dir
-    }
+        impl $ray {
+            #[inline]
+            pub fn new(origin: crate::vector::Point3, direction: crate::vector::Vector3) -> Self {
+                Self {
+                    orig: origin,
+                    dir: direction,
+                }
+            }
+
+            #[inline]
+            pub fn at(&self, t: f32) -> crate::vector::Point3 {
+                self.orig + t * self.dir
+            }
+        }
+
+        paste::paste! {
+            $(
+                #[derive(Default, Debug, Copy, Clone, PartialEq)]
+                pub struct [< $ray $variant>] {
+                    pub orig: crate::vector::[< Point3 $variant >],
+                    pub dir: crate::vector::[< Vector3 $variant >],
+                }
+
+                impl [< $ray $variant>] {
+                    #[inline]
+                    pub fn new(
+                        origin: crate::vector::[< Point3 $variant >],
+                        direction: crate::vector::[< Vector3 $variant >]
+                    ) -> Self {
+                        Self {
+                            orig: origin,
+                            dir: direction,
+                        }
+                    }
+
+                    #[inline]
+                    pub fn at(&self, t: $var_ty) -> crate::vector::[< Point3 $variant >] {
+                        self.orig + t * self.dir
+                    }
+                }
+            )*
+        }
+    };
 }
+
+decl_rays!(Ray => [(f64, D)]);
