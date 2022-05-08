@@ -2,12 +2,14 @@ macro_rules! decl_hittable_lists {
     ($hittable_list:ident => [$(($var_ty:ty, $variant:ident)),*]) => {
 	    #[derive(Default, Clone)]
 		pub struct $hittable_list {
-		    pub objects: Vec<std::sync::Arc<dyn crate::hittable::Hittable>>,
+		    pub objects: Vec<std::sync::Arc<dyn crate::hittable::Hittable + Sync + Send>>,
 		}
 
 		impl $hittable_list {
 		    #[inline]
-		    pub fn new(object: std::sync::Arc<dyn crate::hittable::Hittable>) -> Self {
+		    pub fn new(
+			    object: std::sync::Arc<dyn crate::hittable::Hittable + Sync + Send>
+		    ) -> Self {
 		        Self {
 		            objects: vec![object],
 		        }
@@ -19,7 +21,10 @@ macro_rules! decl_hittable_lists {
 		    }
 
 		    #[inline]
-		    pub fn add(&mut self, object: std::sync::Arc<dyn crate::hittable::Hittable>) {
+		    pub fn add(
+			    &mut self,
+			    object: std::sync::Arc<dyn crate::hittable::Hittable + Sync + Send>
+		    ) {
 		        self.objects.push(object);
 		    }
 		}
@@ -52,12 +57,20 @@ macro_rules! decl_hittable_lists {
 		    $(
 		        #[derive(Default, Clone)]
 				pub struct [< $hittable_list $variant >] {
-				    pub objects: Vec<std::sync::Arc<dyn crate::hittable::[< Hittable $variant >]>>,
+				    pub objects: Vec<
+				        std::sync::Arc<
+				            dyn crate::hittable::[< Hittable $variant >] + Sync + Send
+				        >
+				    >,
 				}
 
 				impl [< $hittable_list $variant >] {
 				    #[inline]
-				    pub fn new(object: std::sync::Arc<dyn crate::hittable::[< Hittable $variant >]>) -> Self {
+				    pub fn new(
+					    object: std::sync::Arc<
+					        dyn crate::hittable::[< Hittable $variant >] + Sync + Send
+					    >
+				    ) -> Self {
 				        Self {
 				            objects: vec![object],
 				        }
@@ -69,7 +82,12 @@ macro_rules! decl_hittable_lists {
 				    }
 
 				    #[inline]
-				    pub fn add(&mut self, object: std::sync::Arc<dyn crate::hittable::[< Hittable $variant >]>) {
+				    pub fn add(
+					    &mut self,
+					    object: std::sync::Arc<
+					        dyn crate::hittable::[< Hittable $variant >] + Sync + Send
+					    >
+				    ) {
 				        self.objects.push(object);
 				    }
 				}
