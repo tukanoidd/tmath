@@ -631,7 +631,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     impl<'b> From<&'b #struct_name> for [#var_ty; #len] {
                         #[inline]
                         fn from(rhs: &'b #struct_name) -> Self {
-                            *rhs.0
+                            rhs.0
                         }
                     }
 
