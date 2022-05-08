@@ -603,6 +603,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             // ----- From START -----
             let from = {
                 let repeat_var_types = vec![var_ty; len];
+                let tuple_vals = (0..len).map(|index| quote! { rhs[#index] });
 
                 quote! {
                     impl From<#var_ty> for #struct_name {
@@ -619,9 +620,23 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                         }
                     }
 
+                    impl From<#struct_name> for [#var_ty; #len] {
+                        #[inline]
+                        fn from(rhs: #struct_name) -> Self {
+                            rhs.0
+                        }
+                    }
+
                     impl From<(#(#repeat_var_types),*)> for #struct_name {
+                        #[inline]
                         fn from((#(#var_names_ident),*): (#(#repeat_var_types),*)) -> Self {
                             Self([#(#var_names_ident),*])
+                        }
+                    }
+
+                    impl From<#struct_name> for (#(#repeat_var_types),*) {
+                        fn from(rhs: #struct_name) -> Self {
+                            (#(#tuple_vals),*)
                         }
                     }
                 }
