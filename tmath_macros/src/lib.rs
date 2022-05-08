@@ -121,6 +121,23 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 let rands_range =
                     (0..len).map(|_| quote! { rand::Rng::gen_range(&mut rng, min..max) });
 
+                let random_unit = if is_signed {
+                    quote! {
+                        pub fn random_unit() -> Self {
+                            loop {
+                                let p = Self::random_range(-1 as #var_ty, 1 as #var_ty);
+                                if p.magnitude_sq() >= 1 as #var_ty {
+                                    continue;
+                                }
+
+                                return p;
+                            }
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
+
                 quote! {
                     impl #struct_name {
                         #[inline]
@@ -142,6 +159,8 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             let mut rng = rand::thread_rng();
                             Self([#(#rands_range),*])
                         }
+
+                        #random_unit
                     }
                 }
             };
