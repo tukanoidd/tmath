@@ -117,6 +117,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             // ----- New START -----
             let new = {
                 let vals = (0..len).map(|_| quote! { val });
+                let rands = (0..len).map(|_| quote! { rand::random::<#var_ty>() });
 
                 quote! {
                     impl #struct_name {
@@ -128,6 +129,11 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                         #[inline]
                         pub fn new_val(val: #var_ty) -> Self {
                             Self([#(#vals),*])
+                        }
+
+                        #[inline]
+                        pub fn random() -> Self {
+                            Self([#(#rands),*])
                         }
                     }
                 }

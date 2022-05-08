@@ -9,3 +9,4 @@ edition = "2021"
 tmath_macros = { path = "../tmath_macros" }
 
 paste = "1.0.7"
+rand = "0.8.5"
