@@ -348,7 +348,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
                     let magnitude = quote! {
                         #[inline]
-                        fn magnitude(&self) -> #return_ty {
+                        pub fn magnitude(&self) -> #return_ty {
                             (self.magnitude_sq() #var_cast).sqrt()
                         }
                     };
