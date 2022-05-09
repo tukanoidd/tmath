@@ -8,14 +8,14 @@ macro_rules! declare_vector_variants {
     (
         $len:literal;
         [$(
-            ($($variant_name:ident, $variant_ty:ty),+)
+            ($($variant_ty:ty, $($variant_name:ident)*),+)
         ),+]
     ) => {
         paste! {
             $($(
                 #[repr(C)]
                 #[derive(Default, Copy, Clone, PartialEq, Vector)]
-                pub struct [< Vector $len $variant_name >]([$variant_ty; $len]);
+                pub struct [< Vector $len $($variant_name)* >]([$variant_ty; $len]);
             )*)*
         }
     };
@@ -25,13 +25,9 @@ macro_rules! declare_vectors {
     ($($len:literal),*) => {
         paste! {
             $(
-                #[repr(C)]
-                #[derive(Default, Copy, Clone, PartialEq, Vector)]
-                pub struct [< Vector $len >]([f32; $len]);
-
                 declare_vector_variants!(
                     $len;
-                    [(D, f64), (I, i32), (L, i64), (U, u32), (UL, u64)]
+                    [(f32, ), (f64, D), (i32, I), (i64, L), (u32, U), (u64, UL)]
                 );
             )*
         }
