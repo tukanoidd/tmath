@@ -120,8 +120,23 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 let rands = (0..len).map(|_| quote! { rand::Rng::gen(&mut rng) });
                 let rands_range =
                     (0..len).map(|_| quote! { rand::Rng::gen_range(&mut rng, min..max) });
+                let zeros = if len > 2 {
+                    (0..len - 2)
+                        .map(|index| {
+                            let comma = if index == 0 {
+                                quote! { , }
+                            } else {
+                                quote! {}
+                            };
 
-                let random_unit_random_hemisphere = if !is_int {
+                            quote! { #comma 0.0 }
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![quote! {}]
+                };
+
+                let randoms_non_int = if !is_int {
                     quote! {
                         #[inline]
                         pub fn random_unit() -> Self {
@@ -137,6 +152,17 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             } else {
                                 -in_unit_sphere
                             }
+                        }
+
+                        pub fn random_in_unit_disk() -> Self {
+                            let mut rng = rand::thread_rng();
+                            let p = Self::new(
+                                rand::Rng::gen_range(&mut rng, -1.0..1.0),
+                                rand::Rng::gen_range(&mut rng, -1.0..1.0)
+                                #(#zeros),*
+                            );
+
+                            p.normalized()
                         }
                     }
                 } else {
@@ -165,7 +191,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             Self([#(#rands_range),*])
                         }
 
-                        #random_unit_random_hemisphere
+                        #randoms_non_int
                     }
                 }
             };
