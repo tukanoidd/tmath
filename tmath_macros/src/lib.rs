@@ -399,6 +399,25 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     }
                 };
 
+                let near_zero = if !is_int {
+                    let less_s = (0..len).map(|index| {
+                        quote! {
+                            self[#index].abs() < 1e-8 as #var_ty
+                        }
+                    });
+
+                    quote! {
+                        impl #struct_name {
+                            #[inline]
+                            pub fn near_zero(&self) -> bool {
+                                #(#less_s)&&*
+                            }
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
+
                 quote! {
                     #dot
                     #cross
@@ -406,6 +425,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #normalize
                     #distance
                     #angle
+                    #near_zero
                 }
             };
             // ----- Vector Specific END -----
