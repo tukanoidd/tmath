@@ -418,6 +418,14 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     quote! {}
                 };
 
+                let reflect = quote! {
+                    impl #struct_name {
+                        pub fn reflect(&self, rhs: &Self) -> Self {
+                            self - 2 as #var_ty * (self | rhs) * rhs
+                        }
+                    }
+                };
+
                 quote! {
                     #dot
                     #cross
@@ -426,6 +434,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #distance
                     #angle
                     #near_zero
+                    #reflect
                 }
             };
             // ----- Vector Specific END -----
@@ -596,6 +605,15 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                                 #[inline]
                                 fn #op_fun(self, rhs: &'b #struct_name) -> Self::Output {
                                     #struct_name([#(#ops),*])
+                                }
+                            }
+
+                            impl<'a> std::ops::#op_trait<#struct_name> for &'a #struct_name {
+                                type Output = #struct_name;
+
+                                #[inline]
+                                fn #op_fun(self, rhs: #struct_name) -> Self::Output {
+                                    self.#op_fun(&rhs)
                                 }
                             }
 
