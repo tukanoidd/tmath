@@ -426,6 +426,24 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     }
                 };
 
+                let refract = if !is_int {
+                    quote! {
+                        impl #struct_name {
+                            pub fn refract(&self, rhs: &Self, etai_over_etat: #var_ty) -> Self {
+                                let cos_theta = (1 as #var_ty).min(-self | rhs);
+                                let r_out_perp = etai_over_etat * (self + cos_theta * rhs);
+                                let r_out_parallel = -(1 as #var_ty - r_out_perp.magnitude_sq())
+                                    .abs()
+                                    .sqrt() * rhs;
+
+                                r_out_perp + r_out_parallel
+                            }
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
+
                 quote! {
                     #dot
                     #cross
@@ -435,6 +453,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #angle
                     #near_zero
                     #reflect
+                    #refract
                 }
             };
             // ----- Vector Specific END -----
