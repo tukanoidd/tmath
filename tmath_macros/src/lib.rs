@@ -121,11 +121,22 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 let rands_range =
                     (0..len).map(|_| quote! { rand::Rng::gen_range(&mut rng, min..max) });
 
-                let random_unit = if !is_int {
+                let random_unit_random_hemisphere = if !is_int {
                     quote! {
                         #[inline]
                         pub fn random_unit() -> Self {
                             Self::random_range(-1 as #var_ty, 1 as #var_ty).normalized()
+                        }
+
+                        #[inline]
+                        pub fn random_in_hemisphere(normal: &Self) -> Self {
+                            let in_unit_sphere = Self::random_unit();
+
+                            if (in_unit_sphere | normal) > 0.0 {
+                                in_unit_sphere
+                            } else {
+                                -in_unit_sphere
+                            }
                         }
                     }
                 } else {
@@ -154,7 +165,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             Self([#(#rands_range),*])
                         }
 
-                        #random_unit
+                        #random_unit_random_hemisphere
                     }
                 }
             };
