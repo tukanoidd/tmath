@@ -10,3 +10,8 @@ tmath_macros = { path = "../tmath_macros" }
 
 paste = "1.0.7"
 rand = "0.8.5"
+
+dlhn = "0.1.0"
+dlhn_derive = "0.1.0"
+
+serde = { version = "1.0.137", features = ["derive"]}

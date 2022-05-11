@@ -1,11 +1,8 @@
-use paste::paste;
-use std::ops::{Index, Neg};
-
 use crate::vector::{Vector3, Vector4};
 
 macro_rules! ops {
 	[s; $($op_name:ident),*] => {
-		paste! {
+		paste::paste! {
 		    $(
 		        impl std::ops::$op_name<f32> for Quaternion {
 				    type Output = Self;
@@ -43,7 +40,7 @@ macro_rules! ops {
 	};
 
     [q; $($op_name:ident),*] => {
-	    paste! {
+	    paste::paste! {
 		    $(
 		        impl std::ops::$op_name for Quaternion {
 				    type Output = Self;
@@ -93,7 +90,7 @@ ops![s; Add, Sub, Mul, Div, Rem];
 ops![q; Add, Sub];
 
 #[repr(C)]
-#[derive(Default, Copy, Clone, PartialEq)]
+#[derive(Default, Copy, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Quaternion {
     pub s: f32,
     pub v: Vector3,
@@ -203,7 +200,7 @@ impl<'b> std::ops::MulAssign<&'b Quaternion> for Quaternion {
     }
 }
 
-impl Neg for Quaternion {
+impl std::ops::Neg for Quaternion {
     type Output = Self;
 
     #[inline]
@@ -212,7 +209,7 @@ impl Neg for Quaternion {
     }
 }
 
-impl Index<usize> for Quaternion {
+impl std::ops::Index<usize> for Quaternion {
     type Output = f32;
 
     fn index(&self, index: usize) -> &Self::Output {

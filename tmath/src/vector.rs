@@ -1,5 +1,3 @@
-use paste::paste;
-
 use tmath_macros::{cast_all_vectors, Vector};
 
 use crate::quaternion::Quaternion;
@@ -11,10 +9,10 @@ macro_rules! declare_vector_variants {
             ($($variant_ty:ty, $($variant_name:ident)*),+)
         ),+]
     ) => {
-        paste! {
+        paste::paste! {
             $($(
                 #[repr(C)]
-                #[derive(Default, Copy, Clone, PartialEq, Vector)]
+                #[derive(Default, Copy, Clone, PartialEq, Vector, serde::Serialize, serde::Deserialize)]
                 pub struct [< Vector $len $($variant_name)* >]([$variant_ty; $len]);
             )*)*
         }
@@ -23,7 +21,7 @@ macro_rules! declare_vector_variants {
 
 macro_rules! declare_vectors {
     ($($len:literal),*) => {
-        paste! {
+        paste::paste! {
             $(
                 declare_vector_variants!(
                     $len;
