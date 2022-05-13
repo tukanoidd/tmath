@@ -4,9 +4,9 @@ macro_rules! decl_rays {
             $(
                 #[derive(Default, Debug, Copy, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
                 pub struct [< $ray $($variant)*>] {
-                    pub orig: crate::vector::[< Point3 $($variant)* >],
-                    pub dir: crate::vector::[< Vector3 $($variant)* >],
-                    pub tm: $var_ty
+                    pub origin: crate::vector::[< Point3 $($variant)* >],
+                    pub direction: crate::vector::[< Vector3 $($variant)* >],
+                    pub time: $var_ty
                 }
 
                 impl [< $ray $($variant)*>] {
@@ -17,15 +17,15 @@ macro_rules! decl_rays {
                         time: $var_ty,
                     ) -> Self {
                         Self {
-                            orig: origin,
-                            dir: direction,
-                            tm: time
+                            origin,
+                            direction,
+                            time
                         }
                     }
 
                     #[inline]
                     pub fn at(&self, t: $var_ty) -> crate::vector::[< Point3 $($variant)* >] {
-                        self.orig + t * self.dir
+                        self.origin + t * self.direction
                     }
                 }
             )*
