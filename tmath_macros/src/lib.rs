@@ -470,6 +470,23 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     quote! {}
                 };
 
+                let min_max = {
+                    let mins = (0..len).map(|index| quote! { self[#index].min(rhs[#index]) });
+                    let maxs = (0..len).map(|index| quote! { self[#index].max(rhs[#index]) });
+
+                    quote! {
+                        impl #struct_name {
+                            pub fn min(&self, rhs: &Self) -> Self {
+                                Self([#(#mins),*])
+                            }
+
+                            pub fn max(&self, rhs: &Self) -> Self {
+                                Self([#(#maxs),*])
+                            }
+                        }
+                    }
+                };
+
                 quote! {
                     #dot
                     #cross
@@ -480,6 +497,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #near_zero
                     #reflect
                     #refract
+                    #min_max
                 }
             };
             // ----- Vector Specific END -----
