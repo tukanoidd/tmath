@@ -202,7 +202,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 impl #struct_name {
                     pub const LEN: usize = #len;
                     pub const ZERO: Self = Self([0 as #var_ty; #len]);
-                    pub const ONE: Self = Self([0 as #var_ty; #len]);
+                    pub const ONE: Self = Self([1 as #var_ty; #len]);
                 }
             };
             // ----- Consts END -----
