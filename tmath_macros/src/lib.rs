@@ -817,6 +817,29 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             };
             // ----- From END -----
 
+            // ----- Hash START -----
+            let hash = {
+                let hashes = (0..len).map(|index| {
+                    if is_int {
+                        quote! { self[#index].hash(state); }
+                    } else {
+                        quote! { self[#index].to_bits().hash(state); }
+                    }
+                });
+
+                quote! {
+                    impl std::hash::Hash for #struct_name {
+                        fn hash<H>(&self, state: &mut H)
+                        where
+                            H: std::hash::Hasher,
+                        {
+                            #(#hashes)*
+                        }
+                    }
+                }
+            };
+            // ----- Hash END -----
+
             // ----- Display/Debug START -----
             let display_debug = {
                 let debug = {
@@ -907,6 +930,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                 #indexing
                 #ops
                 #from
+                #hash
                 #display_debug
                 #types
             })

@@ -14,6 +14,8 @@ macro_rules! declare_vector_variants {
                 #[repr(C)]
                 #[derive(Default, Copy, Clone, PartialEq, Vector, serde::Serialize, serde::Deserialize)]
                 pub struct [< Vector $len $($variant_name)* >]([$variant_ty; $len]);
+
+                impl Eq for [< Vector $len $($variant_name)* >] {}
             )*)*
         }
     };
