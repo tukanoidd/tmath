@@ -1,10 +1,11 @@
 use std::str::FromStr;
 
+use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Literal, Span};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parenthesized,
+    bracketed, parenthesized,
     parse::{Parse, ParseStream, Peek},
     parse_macro_input,
     punctuated::Punctuated,
@@ -32,6 +33,22 @@ fn parse_until<E: Peek>(input: ParseStream, end: E) -> syn::Result<TokenStream> 
     }
 
     Ok(tokens.into())
+}
+
+fn parse_punctuated_comma<S: Clone + Parse>(input: ParseStream) -> syn::Result<Vec<S>> {
+    let mut res = Punctuated::<S, Comma>::new();
+    let first = parse_until(input, Comma)?;
+
+    res.push_value(syn::parse(first)?);
+
+    while input.peek(Comma) {
+        res.push_punct(input.parse()?);
+
+        let next = parse_until(input, Comma)?;
+        res.push_value(syn::parse(next)?);
+    }
+
+    Ok(res.iter().cloned().collect())
 }
 // ----- Functions END -----
 // ----- Helpers END -----
@@ -208,38 +225,42 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             // ----- Consts END -----
 
             // ----- Getters Setters START -----
-            let getters_setters = {
-                let funcs = var_names_ident
-                    .iter()
-                    .enumerate()
-                    .map(|(index, name_ident)| {
-                        let get = name_ident;
-                        let get_mut = format_ident!("{}_mut", name_ident);
-                        let set = format_ident!("set_{}", name_ident);
+            let getters_setters = if (2..=4).contains(&len) {
+                let funcs =
+                    var_names_ident
+                        .iter()
+                        .enumerate()
+                        .clone()
+                        .map(|(index, name_ident)| {
+                            let get = name_ident;
+                            let get_mut = format_ident!("{}_mut", name_ident);
+                            let set = format_ident!("set_{}", name_ident);
 
-                        quote! {
-                            #[inline]
-                            pub fn #get(&self) -> &#var_ty {
-                                &self[#index]
-                            }
+                            quote! {
+                                #[inline]
+                                pub fn #get(&self) -> &#var_ty {
+                                    &self[#index]
+                                }
 
-                            #[inline]
-                            pub fn #get_mut(&mut self) -> &mut #var_ty {
-                                &mut self[#index]
-                            }
+                                #[inline]
+                                pub fn #get_mut(&mut self) -> &mut #var_ty {
+                                    &mut self[#index]
+                                }
 
-                            #[inline]
-                            pub fn #set(&mut self, val: #var_ty) {
-                                self[#index] = val;
+                                #[inline]
+                                pub fn #set(&mut self, val: #var_ty) {
+                                    self[#index] = val;
+                                }
                             }
-                        }
-                    });
+                        });
 
                 quote! {
                     impl #struct_name {
                         #(#funcs)*
                     }
                 }
+            } else {
+                quote! {}
             };
             // ----- Getters Setters END -----
 
@@ -942,7 +963,6 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
 
 #[derive(Clone)]
 struct CastVectorInfo {
-    _paren: Paren,
     path: Path,
     len: Lit,
     elem_ty: Type,
@@ -951,10 +971,9 @@ struct CastVectorInfo {
 impl Parse for CastVectorInfo {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let content;
-        let paren = parenthesized!(content in input);
+        let _paren = parenthesized!(content in input);
 
         Ok(Self {
-            _paren: paren,
             path: {
                 let path: Path = content.parse()?;
                 let _: Comma = content.parse()?;
@@ -984,39 +1003,28 @@ impl ToTokens for CastVectorInfo {
     }
 }
 
-struct CastAllVectorsInput(Punctuated<CastVectorInfo, Comma>);
+struct CastAllVectorsInput(Vec<CastVectorInfo>);
 
 impl Parse for CastAllVectorsInput {
+    #[inline]
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut vector_infos = Punctuated::new();
-        let first = parse_until(input, Comma)?;
-
-        vector_infos.push_value(syn::parse(first)?);
-
-        while input.peek(Comma) {
-            vector_infos.push_punct(input.parse()?);
-
-            let next = parse_until(input, Comma)?;
-            vector_infos.push_value(syn::parse(next)?);
-        }
-
-        Ok(Self(vector_infos))
+        Ok(Self(parse_punctuated_comma(input)?))
     }
 }
 
 #[proc_macro]
 pub fn cast_all_vectors(input: TokenStream) -> TokenStream {
     let CastAllVectorsInput(vector_infos) = parse_macro_input!(input);
-    let vector_infos = vector_infos.iter().collect::<Vec<_>>();
+
     let vec_amount = vector_infos.len();
 
     let all_casts = (0..(vec_amount - 1))
         .flat_map(|i| {
-            let vec1 = vector_infos[i];
+            let vec1 = &vector_infos[i];
 
             ((i + 1)..vec_amount)
                 .map(|j| {
-                    let vec2 = vector_infos[j];
+                    let vec2 = &vector_infos[j];
 
                     cast_two_vectors(vec1, vec2).into()
                 })
@@ -1135,5 +1143,135 @@ fn cast_two_vectors(left_info: &CastVectorInfo, right_info: &CastVectorInfo) -> 
         }
         _ => panic!("Both lengths have to be integer literals"),
     }
+}
+
+struct MultipleVectorManipulationInput {
+    base_name: Ident,
+    lengths: Vec<usize>,
+    types: Vec<VectorType>,
+}
+
+impl Parse for MultipleVectorManipulationInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let base_name = input.parse()?;
+        let _comma: Comma = input.parse()?;
+
+        let length_content;
+        let _bracket = bracketed!(length_content in input);
+        let lengths = parse_punctuated_comma::<Lit>(&length_content)?
+            .iter()
+            .map(|lit| match lit {
+                Lit::Int(val) => val.base10_parse().unwrap(),
+                _ => panic!("Vector length has to be an integer literal"),
+            })
+            .collect::<Vec<usize>>();
+
+        let _comma: Comma = input.parse()?;
+
+        let types_content;
+        let _bracket = bracketed!(types_content in input);
+        let types = parse_punctuated_comma(&types_content)?;
+
+        Ok(Self {
+            base_name,
+            lengths,
+            types,
+        })
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+struct VectorType {
+    ty: Type,
+    name: Option<Ident>,
+}
+
+impl Parse for VectorType {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        let _paren: Paren = parenthesized!(content in input);
+
+        Ok(Self {
+            ty: {
+                let ty = content.parse()?;
+                let _comma: Comma = content.parse()?;
+                ty
+            },
+            name: {
+                let name = content.parse();
+                name.ok()
+            },
+        })
+    }
+}
+
+#[proc_macro]
+pub fn combinatory_getters(input: TokenStream) -> TokenStream {
+    let MultipleVectorManipulationInput {
+        base_name,
+        lengths,
+        types,
+    } = parse_macro_input!(input);
+
+    let res = lengths.iter().filter(|&&len| len > 2).map(|&len| {
+        let var_names_str = &VEC_VAR_NAMES[..len.min(VEC_VAR_COUNT)];
+        let var_names_ident = var_names_str
+            .iter()
+            .map(|var_name_str| str_ident!(var_name_str))
+            .collect::<Vec<_>>();
+
+        let funcs_combinations = types
+            .iter()
+            .map(|VectorType { name, .. }| {
+                let name = name.clone().map_or("".to_string(), |name| name.to_string());
+                let struct_name = format_ident!("{}{}{}", base_name, len, name);
+
+                let funcs_combinations = (2..len)
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .map(|l| {
+                        var_names_ident
+                            .iter()
+                            .enumerate()
+                            .clone()
+                            .combinations(*l)
+                            .collect::<Vec<_>>()
+                    })
+                    .flatten()
+                    .map(|combination| {
+                        let l = combination.len();
+                        let getter_name = str_ident!(&combination
+                            .iter()
+                            .map(|(_, var)| var.to_string())
+                            .collect::<Vec<_>>()
+                            .join(""));
+                        let vals = combination.iter().map(|(index, _)| quote! { self[#index] });
+                        let struct_to_name = format_ident!("Vector{}{}", l, name);
+
+                        quote! {
+                            #[inline]
+                            pub fn #getter_name(&self) -> #struct_to_name {
+                                [#(#vals),*].into()
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                quote! {
+                    impl #struct_name {
+                        #(#funcs_combinations)*
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        quote! { #(#funcs_combinations)* }
+    });
+
+    (quote! {
+        #(#res)*
+    })
+    .into()
 }
 // ----- Vector END -----

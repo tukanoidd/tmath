@@ -1,4 +1,4 @@
-use tmath_macros::{cast_all_vectors, Vector};
+use tmath_macros::{cast_all_vectors, combinatory_getters, Vector};
 
 use crate::quaternion::Quaternion;
 
@@ -23,14 +23,18 @@ macro_rules! declare_vector_variants {
 
 macro_rules! declare_vectors {
     ($($len:literal),*) => {
-        paste::paste! {
-            $(
-                declare_vector_variants!(
-                    $len;
-                    [(f32, ), (f64, D), (i32, I), (i64, L), (u32, U), (u64, UL)]
-                );
-            )*
-        }
+        $(
+            declare_vector_variants!(
+                $len;
+                [(f32, ), (f64, D), (i32, I), (i64, L), (u32, U), (u64, UL)]
+            );
+        )*
+
+        combinatory_getters!(
+            Vector,
+            [$($len),*],
+            [(f32,), (f64, D), (i32, I), (i64, L), (u32, U), (u64, UL)]
+        );
     };
 }
 
