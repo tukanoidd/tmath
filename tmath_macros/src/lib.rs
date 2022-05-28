@@ -510,6 +510,20 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     }
                 };
 
+                let abs = if is_signed {
+                    let abs_vals = (0..len).map(|index| quote! { self[#index].abs() });
+
+                    quote! {
+                        impl #struct_name {
+                            pub fn abs(self) -> Self {
+                                Self([#(#abs_vals),*])
+                            }
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
+
                 quote! {
                     #dot
                     #cross
@@ -521,6 +535,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #reflect
                     #refract
                     #min_max
+                    #abs
                 }
             };
             // ----- Vector Specific END -----
@@ -1207,7 +1222,7 @@ impl Parse for VectorType {
 }
 
 #[proc_macro]
-pub fn combinatory_getters(input: TokenStream) -> TokenStream {
+pub fn combinatory_getters_setters(input: TokenStream) -> TokenStream {
     let MultipleVectorManipulationInput {
         base_name,
         lengths,
@@ -1246,13 +1261,29 @@ pub fn combinatory_getters(input: TokenStream) -> TokenStream {
                             .map(|(_, var)| var.to_string())
                             .collect::<Vec<_>>()
                             .join(""));
-                        let vals = combination.iter().map(|(index, _)| quote! { self[#index] });
+                        let setter_name = format_ident!("set_{}", getter_name);
                         let struct_to_name = format_ident!("Vector{}{}", l, name);
+
+                        let getter_vals =
+                            combination.iter().map(|(index, _)| quote! { self[#index] });
+                        let setter_vals =
+                            combination
+                                .iter()
+                                .enumerate()
+                                .map(|(setter_index, (index, _))| {
+                                    quote! {
+                                        self[#index] = val[#setter_index];
+                                    }
+                                });
 
                         quote! {
                             #[inline]
                             pub fn #getter_name(&self) -> #struct_to_name {
-                                [#(#vals),*].into()
+                                [#(#getter_vals),*].into()
+                            }
+
+                            pub fn #setter_name(&mut self, val: #struct_to_name) {
+                                #(#setter_vals)*
                             }
                         }
                     })
