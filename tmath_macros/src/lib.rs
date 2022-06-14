@@ -119,6 +119,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                     #var_name_ident: #var_ty
                 }
             });
+            let var_names_ident_ty_const = var_names_ident_ty.clone();
 
             let bytes = &var_ty_str[1..];
             let as_float = Type::Verbatim(
@@ -134,6 +135,7 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
             // ----- New START -----
             let new = {
                 let vals = (0..len).map(|_| quote! { val });
+                let vals_const = vals.clone();
                 let rands = (0..len).map(|_| quote! { rand::Rng::gen(&mut rng) });
                 let rands_range =
                     (0..len).map(|_| quote! { rand::Rng::gen_range(&mut rng, min..max) });
@@ -196,8 +198,18 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                         }
 
                         #[inline]
+                        pub const fn new_const(#(#var_names_ident_ty_const),*) -> Self {
+                            Self([#(#var_names_ident),*])
+                        }
+
+                        #[inline]
                         pub fn new_val(val: #var_ty) -> Self {
                             Self([#(#vals),*])
+                        }
+
+                        #[inline]
+                        pub const fn new_val_const(val: #var_ty) -> Self {
+                            Self([#(#vals_const),*])
                         }
 
                         pub fn random() -> Self {
