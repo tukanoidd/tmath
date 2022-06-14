@@ -317,6 +317,15 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                             }
                         }
 
+                        impl<'a> std::ops::#op_trait<#struct_name> for &'a #struct_name {
+                            type Output = #var_ty;
+
+                            #[inline]
+                            fn #op_fun(self, rhs: #struct_name) -> Self::Output {
+                                self.dot(&rhs)
+                            }
+                        }
+
                         impl<'b> std::ops::#op_trait<&'b #struct_name> for #struct_name {
                             type Output = #var_ty;
 
