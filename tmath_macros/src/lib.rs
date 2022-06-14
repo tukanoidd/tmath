@@ -228,6 +228,11 @@ fn parse_array_vector(struct_name: &Ident, arr_field: &Field) -> TokenStream {
                         }
 
                         #randoms_non_int
+
+                        #[inline]
+                        pub fn clear(&mut self) {
+                            *self = Self::default();
+                        }
                     }
                 }
             };
