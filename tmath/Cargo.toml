@@ -4,14 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 tmath_macros = { path = "../tmath_macros" }
+
+num-traits = "0.2.15"
 
 paste = "1.0.7"
 rand = "0.8.5"
 
-dlhn = "0.1.0"
-dlhn_derive = "0.1.0"
-
-serde = { version = "1.0.137", features = ["derive"]}
+serde = { version = "1.0.137", features = ["derive"], optional = true }
