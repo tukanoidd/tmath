@@ -1,7 +1,6 @@
 use std::ops::{Add, DivAssign, Mul, Sub};
 
-use num_traits::real::Real;
-use num_traits::Zero;
+use num_traits::{real::Real, Zero};
 
 #[macro_export]
 macro_rules! vector {
@@ -775,6 +774,75 @@ mod ops {
             }
         }
     }
+
+    pub use cross::*;
+    mod cross {
+        use super::*;
+
+        use std::ops::{BitXor, BitXorAssign};
+
+        impl<T> BitXor<Vector3<T>> for Vector3<T>
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T>,
+        {
+            type Output = Vector3<T>;
+
+            fn bitxor(self, rhs: Vector3<T>) -> Self::Output {
+                self.cross(&rhs)
+            }
+        }
+
+        impl<'b, T> BitXor<&'b Vector3<T>> for Vector3<T>
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T>,
+        {
+            type Output = Vector3<T>;
+
+            fn bitxor(self, rhs: &'b Vector3<T>) -> Self::Output {
+                self.cross(rhs)
+            }
+        }
+
+        impl<'a, T> BitXor<Vector3<T>> for &'a Vector3<T>
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T>,
+        {
+            type Output = Vector3<T>;
+
+            fn bitxor(self, rhs: Vector3<T>) -> Self::Output {
+                self.cross(&rhs)
+            }
+        }
+
+        impl<'a, 'b, T> BitXor<&'b Vector3<T>> for &'a Vector3<T>
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T>,
+        {
+            type Output = Vector3<T>;
+
+            fn bitxor(self, rhs: &'b Vector3<T>) -> Self::Output {
+                self.cross(rhs)
+            }
+        }
+
+        impl<T> BitXorAssign<Vector3<T>> for Vector3<T>
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T>,
+        {
+            fn bitxor_assign(&mut self, rhs: Vector3<T>) {
+                *self = *self ^ rhs;
+            }
+        }
+
+        impl<'b, T> BitXorAssign<&'b Vector3<T>> for Vector3<T>
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T>,
+        {
+            fn bitxor_assign(&mut self, rhs: &'b Vector3<T>) {
+                *self = *self ^ rhs;
+            }
+        }
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -873,28 +941,72 @@ mod tests {
     }
 
     #[test]
-    fn indexing() {
-        let v1: Vector1I = vector!(1);
-        assert_eq!(v1[0], 1);
-        assert!(std::panic::catch_unwind(|| { v1[1] }).is_err());
+    fn length() {
+        let v = vector!(2.0, 3.0, 1.0);
 
-        let v2: Vector2I = vector!(1, 2);
-        assert_eq!(v2[0], 1);
-        assert_eq!(v2[1], 2);
-        assert!(std::panic::catch_unwind(|| { v2[2] }).is_err());
+        assert!((v.length() - 3.741657).abs() < 0.05);
+    }
 
-        let v3: Vector3I = vector!(1, 2, 3);
-        assert_eq!(v3[0], 1);
-        assert_eq!(v3[1], 2);
-        assert_eq!(v3[2], 3);
-        assert!(std::panic::catch_unwind(|| { v3[3] }).is_err());
+    #[test]
+    fn dot() {
+        let v1: Vector3I = vector!(2, 3, 1);
+        let v2: Vector3I = vector!(1, 2, 0);
 
-        let v4: Vector4I = vector!(1, 2, 3, 4);
-        assert_eq!(v4[0], 1);
-        assert_eq!(v4[1], 2);
-        assert_eq!(v4[2], 3);
-        assert_eq!(v4[3], 4);
-        assert!(std::panic::catch_unwind(|| { v4[4] }).is_err());
+        assert_eq!(v1.dot(&v2), 8);
+        assert_eq!(v2.dot(&v1), 8);
+        assert_eq!(v1 | v2, 8);
+        assert_eq!(v2 | v1, 8);
+    }
+
+    #[test]
+    fn cross() {
+        let mut v1: Vector3I = vector!(2, 3, 1);
+        let v2: Vector3I = vector!(1, 2, 0);
+        let target = vector!(-2, 1, 1);
+
+        assert_eq!(v1.cross(&v2), target);
+        assert_eq!(v1 ^ v2, target);
+
+        v1 ^= v2;
+        assert_eq!(v1, target);
+    }
+
+    mod indexing {
+        use super::*;
+
+        #[test]
+        fn vec1() {
+            let v1: Vector1I = vector!(1);
+            assert_eq!(v1[0], 1);
+            assert!(std::panic::catch_unwind(|| { v1[1] }).is_err());
+        }
+
+        #[test]
+        fn vec2() {
+            let v2: Vector2I = vector!(1, 2);
+            assert_eq!(v2[0], 1);
+            assert_eq!(v2[1], 2);
+            assert!(std::panic::catch_unwind(|| { v2[2] }).is_err());
+        }
+
+        #[test]
+        fn vec3() {
+            let v3: Vector3I = vector!(1, 2, 3);
+            assert_eq!(v3[0], 1);
+            assert_eq!(v3[1], 2);
+            assert_eq!(v3[2], 3);
+            assert!(std::panic::catch_unwind(|| { v3[3] }).is_err());
+        }
+
+        #[test]
+        fn vec4() {
+            let v4: Vector4I = vector!(1, 2, 3, 4);
+            assert_eq!(v4[0], 1);
+            assert_eq!(v4[1], 2);
+            assert_eq!(v4[2], 3);
+            assert_eq!(v4[3], 4);
+            assert!(std::panic::catch_unwind(|| { v4[4] }).is_err());
+        }
     }
 
     mod getters_setters {
@@ -1096,5 +1208,9 @@ mod tests {
             cast = vector!(1, 2, 3).into();
             assert_eq!(cast, vector!(1, 2, 3, 0));
         }
+    }
+
+    mod ops {
+        // TODO
     }
 }
