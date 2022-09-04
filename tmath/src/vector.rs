@@ -900,7 +900,7 @@ pub mod serialization {
         }
     }
 
-    impl<'de, const N: usize, T> Deserialize for Vector<N, T>
+    impl<'de, const N: usize, T> Deserialize<'de> for Vector<N, T>
     where
         T: Default,
     {
