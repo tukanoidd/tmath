@@ -868,6 +868,7 @@ pub mod serialization {
         }
     }
 
+    #[derive(Default)]
     pub struct VectorVisitor<const N: usize, T> {
         _marker: std::marker::PhantomData<Vector<N, T>>,
     }
