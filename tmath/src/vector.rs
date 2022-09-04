@@ -849,7 +849,7 @@ mod ops {
 pub mod serialization {
     use super::*;
 
-    use std::{any::Any, borrow::Borrow, fmt::Formatter};
+    use std::{any::Any, fmt::Formatter};
 
     use serde::{
         de::{SeqAccess, Visitor},
@@ -860,7 +860,7 @@ pub mod serialization {
     where
         T: Serialize,
     {
-        fn serialize<S>(&self, serializer: S) -> Result<serde::ser::Ok, dyn serde::ser::Error>
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
         {
@@ -868,20 +868,25 @@ pub mod serialization {
         }
     }
 
-    pub struct VectorVisitor<'de, const N: usize, T>;
+    pub struct VectorVisitor<const N: usize, T> {
+        _marker: std::marker::PhantomData<Vector<N, T>>,
+    }
 
-    impl<'de, const N: usize, T> Visitor<'de> for VectorVisitor<'de, N, T> {
+    impl<'de, const N: usize, T> Visitor<'de> for VectorVisitor<N, T>
+    where
+        T: Default + Copy + Deserialize<'de> + 'static,
+    {
         type Value = Vector<N, T>;
 
         fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-            write!(formatter, "an [{}; {:?}] array", N, T::type_id())
+            write!(formatter, "an [{}; {:?}] array", N, self.type_id())
         }
 
-        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, dyn serde::de::Error>
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
         where
             A: SeqAccess<'de>,
         {
-            let res = [T::default(); N];
+            let mut res = [T::default(); N];
 
             let mut i = 0;
             while let Ok(Some(val)) = seq.next_element() {
@@ -890,6 +895,7 @@ pub mod serialization {
                 }
 
                 res[i] = val;
+                i += 1;
             }
 
             if i < N - 1 {
@@ -902,13 +908,15 @@ pub mod serialization {
 
     impl<'de, const N: usize, T> Deserialize<'de> for Vector<N, T>
     where
-        T: Default,
+        T: Default + Copy + Deserialize<'de> + 'static,
     {
-        fn deserialize<D>(deserializer: D) -> Result<Self, dyn serde::de::Error>
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: Deserializer<'de>,
         {
-            deserializer.deserialize_seq(VectorVisitor::<N, T>)
+            deserializer.deserialize_seq(VectorVisitor::<N, T> {
+                _marker: Default::default(),
+            })
         }
     }
 }
