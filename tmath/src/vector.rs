@@ -868,9 +868,9 @@ pub mod serialization {
         }
     }
 
-    pub struct VectorVisitor<const N: usize, T>;
+    pub struct VectorVisitor<'de, const N: usize, T>;
 
-    impl<const N: usize, T> Visitor for VectorVisitor<N, T> {
+    impl<'de, const N: usize, T> Visitor for VectorVisitor<'de, N, T> {
         type Value = Vector<N, T>;
 
         fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
