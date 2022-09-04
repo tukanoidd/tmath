@@ -868,6 +868,38 @@ pub mod serialization {
         }
     }
 
+    pub struct VectorVisitor<const N: usize, T>;
+
+    impl<const N: usize, T> Visitor for VectorVisitor<N, T> {
+        type Value = Vector<N, T>;
+
+        fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+            write!(formatter, "an [{}; {:?}] array", N, T::type_id())
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, dyn serde::de::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let res = [T::default(); N];
+
+            let mut i = 0;
+            while let Ok(Some(val)) = seq.next_element() {
+                if i >= N {
+                    return Err(serde::de::Error::invalid_length(i, &self));
+                }
+
+                res[i] = val;
+            }
+
+            if i < N - 1 {
+                Err(serde::de::Error::invalid_length(i, &self))
+            } else {
+                Ok(Vector(res))
+            }
+        }
+    }
+
     impl<'de, const N: usize, T> Deserialize for Vector<N, T>
     where
         T: Default,
@@ -876,38 +908,6 @@ pub mod serialization {
         where
             D: Deserializer<'de>,
         {
-            struct VectorVisitor<const N: usize, T>;
-
-            impl<const N: usize, T> Visitor for VectorVisitor<N, T> {
-                type Value = Vector<N, T>;
-
-                fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-                    write!(formatter, "an [{}; {:?}] array", N, T::type_id())
-                }
-
-                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, dyn serde::de::Error>
-                where
-                    A: SeqAccess<'de>,
-                {
-                    let res = [T::default(); N];
-
-                    let mut i = 0;
-                    while let Ok(Some(val)) = seq.next_element() {
-                        if i >= N {
-                            return Err(serde::de::Error::invalid_length(i, &self));
-                        }
-
-                        res[i] = val;
-                    }
-
-                    if i < N - 1 {
-                        Err(serde::de::Error::invalid_length(i, &self))
-                    } else {
-                        Ok(Vector(res))
-                    }
-                }
-            }
-
             deserializer.deserialize_seq(VectorVisitor::<N, T>)
         }
     }
